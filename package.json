@@ -1,0 +1,16 @@
+{
+  "name": "cheyipai-report-photo-downloader",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "download": "tsx download.ts"
+  },
+  "dependencies": {
+    "@vitalets/google-translate-api": "^9.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.0"
+  }
+}
