@@ -2,4 +2,6 @@ node_modules/
 photos/
 dist/
 *.js.map
-package-lock.json
+
+
+.translation-cache.json
