@@ -67,12 +67,17 @@ export function parseReportUrl(input: string): Record<string, string> {
 }
 
 export function sanitizeFilename(name: string): string {
-  return (
-    name
+  const sanitized = name
       .replace(/[<>:"/\\|?*\x00-\x1f]/g, " ")
       .replace(/\s+/g, " ")
-      .trim() || "unnamed"
-  );
+      .trim()
+      .replace(/[. ]+$/g, "")
+      .slice(0, 120);
+
+  if (!sanitized) return "unnamed";
+  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(sanitized)
+    ? `_${sanitized}`
+    : sanitized;
 }
 
 async function sleep(ms: number) {
