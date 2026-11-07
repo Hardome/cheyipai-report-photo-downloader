@@ -3,14 +3,20 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "download": "tsx download.ts"
+    "download": "tsx download.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.ts"
   },
   "dependencies": {
     "@vitalets/google-translate-api": "^9.2.1"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.4.0"
+    "@types/node": "^24.19.2",
+    "@types/node-fetch": "^2.6.13",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

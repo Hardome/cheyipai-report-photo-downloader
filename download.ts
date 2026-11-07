@@ -1,3 +1,7 @@
+import { fetchWithRetry } from "./network.js";
+import { parseArgs } from "node:util";
+import { existsSync, renameSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { translate } from "@vitalets/google-translate-api";
 import { createWriteStream, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { pipeline } from "stream/promises";
@@ -17,13 +21,30 @@ const TABS: Array<{ folderName: string; key: keyof ReportData }> = [
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DICT_PATH = path.join(__dirname, "dictionary.json");
-const DICT: Record<string, string> = JSON.parse(readFileSync(DICT_PATH, "utf-8"));
+const DICT: Record<string, string> = JSON.parse(
+  readFileSync(DICT_PATH, "utf-8"),
+);
+
+const cachePath = path.join(process.cwd(), ".translation-cache.json");
+try {
+  const cached: unknown = JSON.parse(readFileSync(cachePath, "utf8"));
+  if (cached && typeof cached === "object") {
+    for (const [key, value] of Object.entries(cached))
+      if (typeof value === "string") DICT[key] = value;
+  }
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+    console.warn("Translation cache could not be loaded");
+}
 
 function saveDictEntry(chinese: string, russian: string): void {
   DICT[chinese] = russian;
-  writeFileSync(DICT_PATH, JSON.stringify(DICT, null, 2), "utf-8");
+  writeFileSync(
+    path.join(process.cwd(), ".translation-cache.json"),
+    JSON.stringify(DICT, null, 2),
+    "utf-8",
+  );
 }
-
 
 interface Photo {
   photoName: string;
@@ -39,14 +60,24 @@ interface ReportData {
   defectPhotoList: Photo[];
 }
 
-function parseReportUrl(input: string): Record<string, string> {
+export function parseReportUrl(input: string): Record<string, string> {
   const url = input.includes("?") ? input : `https://x.com/?${input}`;
   const parsed = new URL(url);
   return Object.fromEntries(parsed.searchParams.entries());
 }
 
-function sanitizeFilename(name: string): string {
-  return name.replace(/[<>:"/\\|?*\x00-\x1f]/g, " ").replace(/\s+/g, " ").trim() || "unnamed";
+export function sanitizeFilename(name: string): string {
+  const sanitized = name
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[. ]+$/g, "")
+      .slice(0, 120);
+
+  if (!sanitized) return "unnamed";
+  return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(sanitized)
+    ? `_${sanitized}`
+    : sanitized;
 }
 
 async function sleep(ms: number) {
@@ -83,7 +114,9 @@ async function translateBatch(names: string[]): Promise<Map<string, string>> {
   }
 
   if (unknown.length > 0) {
-    console.log(`  (${unknown.length} unknown terms — translating via Google Translate and saving to dictionary.json)`);
+    console.log(
+      `  (${unknown.length} unknown terms — translating via Google Translate and saving to .translation-cache.json)`,
+    );
     for (let i = 0; i < unknown.length; i++) {
       const name = unknown[i];
       result.set(name, await translateName(name));
@@ -94,34 +127,46 @@ async function translateBatch(names: string[]): Promise<Map<string, string>> {
   return result;
 }
 
-async function downloadPhoto(url: string, dest: string): Promise<void> {
-  const response = await fetch(url);
+export async function downloadPhoto(
+  url: string,
+  dest: string,
+  overwrite = false,
+): Promise<void> {
+  const response = await fetchWithRetry(url);
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   if (!response.body) throw new Error("No response body");
-  const writer = createWriteStream(dest);
-  // @ts-expect-error Node 22 fetch body is compatible with pipeline
-  await pipeline(response.body, writer);
+  const temporary = dest + "." + randomUUID() + ".part";
+  const writer = createWriteStream(temporary, { flags: "wx" });
+  try {
+    await pipeline(response.body, writer);
+    if (overwrite) renameSync(temporary, dest);
+    else
+      await import("node:fs/promises").then((fs) => fs.link(temporary, dest));
+  } finally {
+    await import("node:fs/promises").then((fs) =>
+      fs.rm(temporary, { force: true }),
+    );
+  }
 }
 
-function buildFilenames(
+export function buildFilenames(
   photos: Photo[],
-  translations: Map<string, string>
+  translations: Map<string, string>,
 ): string[] {
-  const translatedNames = photos.map(
-    (p) => translations.get(p.photoName) ?? sanitizeFilename(p.photoName)
+  const names = photos.map((photo) =>
+    sanitizeFilename(translations.get(photo.photoName) ?? photo.photoName),
   );
   const counts = new Map<string, number>();
-  for (const name of translatedNames)
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-
-  const indices = new Map<string, number>();
-  return translatedNames.map((name) => {
-    if ((counts.get(name) ?? 1) > 1) {
-      const idx = (indices.get(name) ?? 0) + 1;
-      indices.set(name, idx);
-      return `${name} ${idx}.jpg`;
-    }
-    return `${name}.jpg`;
+  for (const name of names)
+    counts.set(name.toLowerCase(), (counts.get(name.toLowerCase()) ?? 0) + 1);
+  const used = new Set<string>();
+  return names.map((name) => {
+    let suffix = 1;
+    let candidate =
+      (counts.get(name.toLowerCase()) ?? 0) > 1 ? name + " " + suffix++ : name;
+    while (used.has(candidate.toLowerCase())) candidate = name + " " + suffix++;
+    used.add(candidate.toLowerCase());
+    return candidate + ".jpg";
   });
 }
 
@@ -141,11 +186,30 @@ async function main() {
   console.log("==============================================");
   console.log();
 
-  let input = process.argv[2];
+  const { values, positionals } = parseArgs({
+    allowPositionals: true,
+    options: {
+      output: { type: "string" },
+      "no-translate": { type: "boolean" },
+      overwrite: { type: "boolean" },
+      help: { type: "boolean" },
+    },
+  });
+  if (values.help) {
+    console.log(
+      "npm run download -- <URL> [--output ./photos] [--no-translate] [--overwrite]",
+    );
+    return;
+  }
+  let input = positionals[0];
 
   if (!input) {
-    console.log("Вставьте ссылку на отчёт с сайта report.cheyipai.com и нажмите Enter.");
-    console.log("Paste the report URL from report.cheyipai.com and press Enter.\n");
+    console.log(
+      "Вставьте ссылку на отчёт с сайта report.cheyipai.com и нажмите Enter.",
+    );
+    console.log(
+      "Paste the report URL from report.cheyipai.com and press Enter.\n",
+    );
     input = await prompt("URL: ");
   }
 
@@ -166,7 +230,7 @@ async function main() {
 
   if (!reportCode || !templateCode || !reportVersion) {
     console.error(
-      "The URL is missing required parameters (reportCode, templateCode, reportVersion)."
+      "The URL is missing required parameters (reportCode, templateCode, reportVersion).",
     );
     process.exit(1);
   }
@@ -174,21 +238,51 @@ async function main() {
   console.log(`\nReport code: ${reportCode}`);
   console.log("Fetching report data...");
 
-  const query = new URLSearchParams({ reportCode, templateCode, reportVersion, regenerate: "1" });
-  const apiResponse = await fetch(`${API_BASE}?${query}`);
+  const query = new URLSearchParams({
+    reportCode,
+    templateCode,
+    reportVersion,
+    regenerate: "1",
+  });
+  const apiResponse = await fetchWithRetry(`${API_BASE}?${query}`);
   if (!apiResponse.ok) throw new Error(`API error: HTTP ${apiResponse.status}`);
-  const json = (await apiResponse.json()) as { success: boolean; data: ReportData };
+  const json = (await apiResponse.json()) as {
+    success: boolean;
+    data: ReportData;
+  };
   if (!json.success) throw new Error("API returned success=false");
   const data = json.data;
+  if (!data || typeof data !== "object") throw new Error("Invalid report data");
+  for (const { key } of TABS) {
+    if (
+      data[key] !== undefined &&
+      (!Array.isArray(data[key]) ||
+        data[key].some(
+          (p) =>
+            !p ||
+            typeof p.photoName !== "string" ||
+            typeof (p.bigPhotoUrl || p.photoPath) !== "string",
+        ))
+    )
+      throw new Error("Invalid photo category: " + key);
+  }
 
   const allNames: string[] = [];
   for (const { key } of TABS)
     for (const photo of data[key] ?? []) allNames.push(photo.photoName);
 
-  console.log(`Translating ${new Set(allNames).size} unique photo names to Russian...`);
-  const translations = await translateBatch(allNames);
+  console.log(
+    `Translating ${new Set(allNames).size} unique photo names to Russian...`,
+  );
+  const translations = values["no-translate"]
+    ? new Map<string, string>()
+    : await translateBatch(allNames);
 
-  const outputDir = path.join(process.cwd(), "photos");
+  const outputDir = path.join(
+    process.cwd(),
+    values.output ?? "photos",
+    sanitizeFilename(reportCode),
+  );
   mkdirSync(outputDir, { recursive: true });
 
   let totalDownloaded = 0;
@@ -213,9 +307,15 @@ async function main() {
       const dest = path.join(folderPath, filename);
       const url = photo.bigPhotoUrl || photo.photoPath;
 
-      process.stdout.write(`  ${String(i + 1).padStart(3)}/${photos.length}  ${filename} ... `);
+      process.stdout.write(
+        `  ${String(i + 1).padStart(3)}/${photos.length}  ${filename} ... `,
+      );
       try {
-        await downloadPhoto(url, dest);
+        if (existsSync(dest) && !values.overwrite) {
+          console.log("Skipped existing file");
+          continue;
+        }
+        await downloadPhoto(url, dest, values.overwrite);
         console.log("✓");
         totalDownloaded++;
       } catch (err) {
@@ -226,12 +326,19 @@ async function main() {
   }
 
   console.log("\n==============================================");
-  console.log(`Done! Downloaded ${totalDownloaded} photos${totalFailed ? `, ${totalFailed} failed` : ""}.`);
+  console.log(
+    `Done! Downloaded ${totalDownloaded} photos${totalFailed ? `, ${totalFailed} failed` : ""}.`,
+  );
+  if (totalFailed > 0) process.exitCode = 1;
   console.log(`Saved to: ${outputDir}`);
   console.log("==============================================");
 }
 
-main().catch((err) => {
-  console.error("\nFatal error:", err.message ?? err);
-  process.exit(1);
-});
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+)
+  main().catch((err) => {
+    console.error("\nFatal error:", err.message ?? err);
+    process.exit(1);
+  });
