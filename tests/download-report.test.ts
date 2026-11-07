@@ -31,7 +31,7 @@ test("a report can partially fail, then skip successful files on the next run", 
 
     return url.endsWith("good.jpg")
       ? new Response("image bytes")
-      : new Response("unavailable", { status: 503 });
+      : new Response("unavailable", { status: 404 });
   };
 
   const options = { output: directory, noTranslate: true };

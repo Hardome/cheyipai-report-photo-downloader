@@ -12,7 +12,7 @@ export function getReportParameters(input: string): ReportParameters {
   const { reportCode, templateCode, reportVersion } = parseReportUrl(input);
 
   if (!reportCode || !templateCode || !reportVersion) {
-    throw new Error("The URL is missing required parameters (reportCode, templateCode, reportVersion).");
+    throw new Error("В ссылке отсутствуют обязательные параметры: reportCode, templateCode, reportVersion.");
   }
 
   return { reportCode, templateCode, reportVersion };
@@ -23,12 +23,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function parsePhoto(value: unknown): Photo {
-  if (!isRecord(value) || typeof value.photoName !== "string") throw new Error("Invalid photo name");
+  if (!isRecord(value) || typeof value.photoName !== "string") throw new Error("Некорректное название фотографии");
 
   const url = value.bigPhotoUrl || value.photoPath;
 
   if (typeof url !== "string" || !URL.canParse(url) || !["http:", "https:"].includes(new URL(url).protocol)) {
-    throw new Error("Invalid photo URL");
+    throw new Error("Некорректный адрес фотографии");
   }
 
   return {
@@ -40,14 +40,14 @@ function parsePhoto(value: unknown): Photo {
 }
 
 export function parseReportResponse(value: unknown): ReportData {
-  if (!isRecord(value) || value.success !== true || !isRecord(value.data)) throw new Error("Invalid report response");
+  if (!isRecord(value) || value.success !== true || !isRecord(value.data)) throw new Error("Сервис вернул некорректный отчёт");
 
   const report: ReportData = { photoList: [], paintPhotoList: [], markPhotoList: [], defectPhotoList: [] };
 
   for (const { key } of CATEGORIES) {
     const photos = value.data[key];
     if (photos === undefined) continue;
-    if (!Array.isArray(photos)) throw new Error(`Invalid photo category: ${key}`);
+    if (!Array.isArray(photos)) throw new Error(`Некорректная категория фотографий: ${key}`);
     report[key] = photos.map(parsePhoto);
   }
 
@@ -58,7 +58,7 @@ export async function fetchReport(parameters: ReportParameters, request: Fetcher
   const query = new URLSearchParams({ ...parameters, regenerate: "1" });
   const response = await request(`https://npi.cheyipai.com/detect/report/reportConfigurableApi/getReport?${query}`);
 
-  if (!response.ok) throw new Error(`API error: HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`Ошибка получения отчёта: HTTP ${response.status}`);
 
   return parseReportResponse(await response.json());
 }

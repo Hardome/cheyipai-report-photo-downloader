@@ -15,25 +15,52 @@ afterEach(async () => {
 });
 
 test("a broken response stream leaves no partial file", async () => {
-  let reads = 0;
-  const body = new ReadableStream<Uint8Array>({
-    pull(controller) {
-      if (reads++ === 0) {
-        controller.enqueue(new TextEncoder().encode("partial image"));
-      } else {
-        controller.error(new Error("connection lost"));
-      }
-    },
-  });
+  const request = async () => {
+    let reads = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (reads++ === 0) {
+          controller.enqueue(new TextEncoder().encode("partial image"));
+        } else {
+          controller.error(new Error("connection lost"));
+        }
+      },
+    });
+
+    return new Response(body);
+  };
 
   await expect(downloadPhoto(
     "https://example.test/image.jpg",
     path.join(directory, "image.jpg"),
     false,
-    async () => new Response(body),
+    request,
   )).rejects.toThrow("connection lost");
 
   expect(await readdir(directory)).toEqual([]);
+});
+
+test("a failed transfer is retried from the beginning", async () => {
+  let attempts = 0;
+  const destination = path.join(directory, "image.jpg");
+
+  await downloadPhoto("https://example.test/image.jpg", destination, false, async () => {
+    attempts++;
+
+    if (attempts === 1) {
+      return new Response(new ReadableStream({
+        start(controller) {
+          controller.error(new TypeError("fetch failed", { cause: { code: "ECONNRESET" } }));
+        },
+      }));
+    }
+
+    return new Response("complete image");
+  });
+
+  expect(attempts).toBe(2);
+  expect(await readFile(destination, "utf8")).toBe("complete image");
+  expect(await readdir(directory)).toEqual(["image.jpg"]);
 });
 
 test("existing destination is preserved unless overwrite is explicit", async () => {

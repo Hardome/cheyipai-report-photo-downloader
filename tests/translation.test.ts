@@ -12,7 +12,7 @@ test("cache write failure does not repeat translation", async () => {
   expect(result.get("new")).toBe("Car");
   expect(translateName).toHaveBeenCalledTimes(1);
   expect(save).toHaveBeenCalledTimes(1);
-  expect(warn).toHaveBeenCalledWith("Translation cache could not be saved");
+  expect(warn).toHaveBeenCalledWith("Не удалось сохранить кэш переводов");
 });
 
 test("unavailable translator falls back after three attempts", async () => {

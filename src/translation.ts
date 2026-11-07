@@ -31,7 +31,7 @@ export async function translateNames(names: string[], cache: TranslationCache, d
     }
 
     if (translated === undefined) {
-      warn(`Translation unavailable: ${name}`);
+      warn(`Перевод недоступен, сохраняем исходное название: ${name}`);
 
       result.set(name, sanitizeFilename(name));
     } else {
@@ -39,7 +39,7 @@ export async function translateNames(names: string[], cache: TranslationCache, d
       result.set(name, translated);
 
       try { await cache.save(); }
-      catch { warn("Translation cache could not be saved"); }
+      catch { warn("Не удалось сохранить кэш переводов"); }
     }
     if (name !== unique.at(-1)) await wait(200);
   }

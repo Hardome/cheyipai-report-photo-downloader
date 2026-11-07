@@ -14,5 +14,5 @@ test.each([null, { success: false }, { success: true, data: [] },
 });
 
 test("all report identifiers are required", () => {
-  expect(() => getReportParameters("https://report.cheyipai.com/?reportCode=x")).toThrow("missing required parameters");
+  expect(() => getReportParameters("https://report.cheyipai.com/?reportCode=x")).toThrow("отсутствуют обязательные параметры");
 });

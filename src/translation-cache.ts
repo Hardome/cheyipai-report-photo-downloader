@@ -10,7 +10,7 @@ export interface TranslationCache {
 function parseDictionary(text: string): Map<string, string> {
   const value: unknown = JSON.parse(text);
 
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid translation dictionary");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Некорректный словарь переводов");
 
   return new Map(Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
 }
@@ -24,7 +24,7 @@ export async function loadTranslationCache(
   try {
     for (const [key, value] of parseDictionary(await readFile(cachePath, "utf8"))) entries.set(key, value);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") warn("Translation cache could not be loaded");
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") warn("Не удалось прочитать кэш переводов");
   }
 
   return {
