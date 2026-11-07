@@ -38,8 +38,7 @@ export function buildFilenames(
     while (used.has(candidate.toLowerCase())) candidate = name + " " + suffix++;
 
     used.add(candidate.toLowerCase());
-  
+
     return candidate + ".jpg";
   });
 }
-

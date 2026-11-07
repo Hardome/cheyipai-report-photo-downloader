@@ -16,8 +16,6 @@
     "noEmit": true
   },
   "include": [
-    "download.ts",
-    "network.ts",
     "src/**/*.ts",
     "tests/**/*.ts"
   ],

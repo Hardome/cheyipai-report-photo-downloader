@@ -38,3 +38,8 @@ export async function main(): Promise<void> {
 
   if (result.failed > 0) process.exitCode = 1;
 }
+
+main().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
+});

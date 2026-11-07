@@ -1,7 +1,7 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { fetchWithRetry } from "../network.js";
+import { fetchWithRetry } from "../src/http.js";
 
 test("transient HTTP errors are retried, permanent errors are returned", async () => {
   let attempts = 0;

@@ -6,4 +6,3 @@ export const CATEGORIES: Array<{ folderName: string; key: keyof ReportData }> = 
   { folderName: "Annotated Photos", key: "markPhotoList" },
   { folderName: "Defect Photos", key: "defectPhotoList" },
 ];
-

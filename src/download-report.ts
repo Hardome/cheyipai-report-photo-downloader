@@ -34,9 +34,9 @@ export async function downloadReport(input: string, options: DownloadOptions = {
 
   for (const { folderName, key } of CATEGORIES) {
     const photos = report[key];
-  
+
     if (photos.length === 0) { log(`[${folderName}] No photos, skipping.`); continue; }
-  
+
     const directory = path.join(outputDir, folderName);
 
     await mkdir(directory, { recursive: true });

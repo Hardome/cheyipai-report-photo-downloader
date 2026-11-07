@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { buildFilenames } from "../download.js";
+import { buildFilenames } from "../src/index.js";
 
 test("translated names remain Unicode and cannot collide after numbering", () => {
   const photos = ["车", "车", "other"].map((photoName) => ({
