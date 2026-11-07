@@ -1,10 +1,10 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import {
   parseReportUrl,
   sanitizeFilename,
   buildFilenames,
-} from "../download.js";
+} from "../src/index.js";
 
 test("URL parameters and invalid URLs", () => {
   assert.equal(

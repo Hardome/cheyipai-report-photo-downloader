@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "download": "tsx download.ts",
+    "download": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.ts"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@vitalets/google-translate-api": "^9.2.1"
@@ -14,9 +15,10 @@
     "@types/node": "^24.19.2",
     "@types/node-fetch": "^2.6.13",
     "tsx": "^4.23.15",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   }
 }

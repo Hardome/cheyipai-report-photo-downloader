@@ -16,5 +16,5 @@ export async function fetchWithRetry(url: string): Promise<Response> {
     await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
   }
 
-  throw new Error("Request failed after three attempts");
+  throw new Error("Запрос не выполнен после трёх попыток");
 }
