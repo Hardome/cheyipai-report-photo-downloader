@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { fetchWithRetry } from "../network.js";
@@ -17,7 +17,9 @@ test("transient HTTP errors are retried, permanent errors are returned", async (
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
+
   assert.ok(address && typeof address === "object");
+
   const base = `http://127.0.0.1:${address.port}`;
 
   try {
